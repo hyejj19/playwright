@@ -30,6 +30,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .network-filters-resource-type {
@@ -44,4 +46,57 @@
 
 .network-filters-resource-type.selected {
   background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.network-filters-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border));
+  border-radius: 3px;
+  box-shadow: 0 4px 8px var(--vscode-widget-shadow);
+  z-index: 1000;
+  min-width: 150px;
+  padding: 4px 0;
+  margin-top: 2px;
+  float: none;
+  opacity: 1;
+  display: block;
+  align-items: stretch;
+  height: auto;
+}
+
+.network-filters-dropdown-item {
+  display: block;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--vscode-menu-foreground, var(--vscode-editorWidget-foreground));
+  white-space: nowrap;
+  background-color: transparent;
+}
+
+.network-filters-dropdown-item:hover {
+  background-color: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-hoverForeground));
+}
+
+.network-filters-dropdown-item.selected {
+  background-color: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
+}
+
+.network-filters-more-button-wrapper {
+  margin-left: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.network-filters-more-button {
+}
+
+.network-filters-more-button.active {
+  background-color: var(--vscode-inputOption-activeBackground) !important;
+  color: var(--vscode-inputOption-activeForeground) !important;
 }
