@@ -27,6 +27,13 @@ export type FilterState = {
 
 export const defaultFilterState: FilterState = { searchValue: '', resourceType: 'All' };
 
+// TODO:
+// 1. 하단으로 이동시켰다가 다시 돌아올 때 탭 아이템 일부 중복되는 현상 수정
+// 2. resize 줄어들 때 moreButton이 오른쪽으로 밀려서 사라지는 현상 수정
+// 3. 현재 선택된 탭인 경우 dropdown 에 넣지 않도록 수정
+// 4. 현재 선택된 탭이면서 왼쪽에 아이템이 있는 경우, 좌측 아이템을 넣도록 수정
+// 5. 드롭다운에서 탭 선택시, 가장 마지막에 있는 visible Item 과 switch 되도록 수정
+
 export const NetworkFilters = ({
   filterState,
   onFilterStateChange,
@@ -43,59 +50,28 @@ export const NetworkFilters = ({
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
 
 
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node))
-        setDropdownOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const recalc = React.useCallback(() => {
     const containerElement = containerRef.current;
-    const moreButtonContainerElement = dropdownRef.current; // "..." 버튼을 감싸는 div
 
     if (!containerElement)
       return;
 
-    const containerRect = containerElement.getBoundingClientRect();
-    const gap = 8; // .network-filters-resource-types에 정의된 CSS gap 값
-
-    let moreButtonActualWidth = 0;
-    if (moreButtonContainerElement && overflows.length > 0) {
-      // display:none 상태일 수 있으므로, 실제 너비를 가져오려면 일시적으로 보이게 할 수도 있지만,
-      // 여기서는 overflows.length > 0일때는 항상 DOM에 있고 너비가 있다고 가정합니다.
-      moreButtonActualWidth = moreButtonContainerElement.getBoundingClientRect().width;
-    }
-
-    // "..." 버튼 영역이 실제로 차지하는 너비 (버튼 너비 + 버튼 앞 간격)
-    let moreButtonAreaEffectiveWidth = 0;
-    if (overflows.length > 0) { // "..." 버튼이 현재 표시되고 있다면
-      moreButtonAreaEffectiveWidth = moreButtonActualWidth;
-      if (visible.length > 0) { // 보이는 필터 아이템이 있다면 버튼 앞에 gap이 추가됨
-        moreButtonAreaEffectiveWidth += gap;
-      }
-    }
-    // overflows.length가 0이면, "..." 버튼은 공간을 차지하지 않음
-
-    // 보이는 필터 아이템들이 사용할 수 있는 전체 너비
-    const availableWidthForAllVisibleItems = containerRect.width - moreButtonAreaEffectiveWidth;
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const moreButtonRect =  dropdownRef.current?.getBoundingClientRect();
+    const availableWidthForAllVisibleItems = containerRect.width - (moreButtonRect?.width ?? 0);
 
     // --- 로직 1: 아이템을 'visible'에서 'overflows'로 이동 ---
     if (visible.length > 0) {
       const lastVisibleItemElement = tabRefs.current[visible.length - 1];
+
       if (lastVisibleItemElement) {
-        // 현재 보이는 모든 필터 아이템들과 그 사이의 간격들이 차지하는 총 너비
-        // (컨테이너 시작점부터 마지막 아이템의 오른쪽 끝까지의 거리로 측정)
         const totalWidthOfVisibleItems = lastVisibleItemElement.getBoundingClientRect().right - containerRect.left;
 
         if (totalWidthOfVisibleItems > availableWidthForAllVisibleItems) {
           const itemToMove = visible[visible.length - 1];
           setVisible(prev => prev.slice(0, -1));
-          setOverflows(prev => [...prev, itemToMove]); // 아이템을 overflows 배열 끝에 추가
-          return; // 상태 변경 후 recalc가 다시 실행될 것임
+          setOverflows(prev => [...prev, itemToMove]);
+          return;
         }
       }
     }
@@ -107,23 +83,15 @@ export const NetworkFilters = ({
         const lastVisibleItemElement = tabRefs.current[visible.length - 1];
         if (lastVisibleItemElement)
           totalWidthOfCurrentVisibleItems = lastVisibleItemElement.getBoundingClientRect().right - containerRect.left;
-
-      }
-      // visible 배열이 비어있으면 totalWidthOfCurrentVisibleItems는 0
-
-      // 다음 오버플로우 아이템을 위해 필요한 너비 (아이템 너비 + 필요하다면 앞쪽 gap)
-      // 이상적으로는 overflows[overflows.length - 1] 아이템의 실제 너비를 사용해야 함
-      const NEXT_ITEM_ESTIMATED_WIDTH = 60; // 임시 임계값
-      let spaceNeededForNextOverflowItem = NEXT_ITEM_ESTIMATED_WIDTH;
-      if (visible.length > 0) { // 이미 다른 아이템들이 보인다면 새 아이템 앞에 gap 필요
-        spaceNeededForNextOverflowItem += gap;
       }
 
-      if (totalWidthOfCurrentVisibleItems + spaceNeededForNextOverflowItem <= availableWidthForAllVisibleItems) {
-        const itemToMoveBack = overflows[overflows.length - 1]; // overflows 배열 끝에서 아이템 가져오기
+      const NEXT_ITEM_ESTIMATED_WIDTH = 50;
+
+      if (totalWidthOfCurrentVisibleItems + NEXT_ITEM_ESTIMATED_WIDTH <= availableWidthForAllVisibleItems) {
+        const itemToMoveBack = overflows[overflows.length - 1];
         setVisible(prev => [...prev, itemToMoveBack]);
         setOverflows(prev => prev.slice(0, -1));
-        return; // 상태 변경 후 recalc가 다시 실행될 것임
+        return;
       }
     }
   }, [visible, overflows]);
@@ -139,6 +107,16 @@ export const NetworkFilters = ({
 
     return () => ro.disconnect();
   }, [recalc]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node))
+        setDropdownOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
 
   return (
