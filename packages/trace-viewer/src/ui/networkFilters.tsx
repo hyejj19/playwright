@@ -43,10 +43,21 @@ export const NetworkFilters = ({
   const [hiddenItems, setHiddenItems] = React.useState<Set<ResourceType>>(new Set());
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
 
-  // 계산된 값들
   const visibleItems = resourceTypes.filter(type => !hiddenItems.has(type));
   const overflowItems = resourceTypes.filter(type => hiddenItems.has(type));
 
+  const handleDropdownItemClick = (selectedType: ResourceType) => {
+    const lastVisibleItem = visibleItems[visibleItems.length - 1];
+    setHiddenItems(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(selectedType);
+      newSet.add(lastVisibleItem);
+      return newSet;
+    });
+
+    onFilterStateChange({ ...filterState, resourceType: selectedType });
+    setDropdownOpen(false);
+  };
 
   const recalc = React.useCallback(() => {
     const container = containerRef.current;
@@ -86,7 +97,7 @@ export const NetworkFilters = ({
         return;
       }
     }
-  }, [visibleItems, hiddenItems]);
+  }, [visibleItems, hiddenItems, overflowItems, filterState.resourceType]);
 
   React.useEffect(() => {
     recalc();
@@ -153,10 +164,7 @@ export const NetworkFilters = ({
                     className={`network-filters-dropdown-item ${
                       filterState.resourceType === type ? 'selected' : ''
                     }`}
-                    onClick={() => {
-                      onFilterStateChange({ ...filterState, resourceType: type });
-                      setDropdownOpen(false);
-                    }}
+                    onClick={() => handleDropdownItemClick(type)}
                   >
                     {type}
                   </div>
