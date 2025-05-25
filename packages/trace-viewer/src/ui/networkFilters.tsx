@@ -154,7 +154,7 @@ export const NetworkFilters = ({
               onClick={() => setDropdownOpen(!dropdownOpen)}
               ariaLabel='More filters'
             >
-                ...
+              <span className='codicon codicon-chevron-right' />
             </ToolbarButton>
             {dropdownOpen && (
               <div className='network-filters-dropdown'>

@@ -82,7 +82,7 @@
 }
 
 .network-filters-dropdown-item.selected {
-  background-color: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+  background-color: var(--vscode-list-inactiveSelectionBackground);
   color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
 }
 
@@ -93,10 +93,7 @@
   align-items: center;
 }
 
-.network-filters-more-button {
-}
-
 .network-filters-more-button.active {
-  background-color: var(--vscode-inputOption-activeBackground) !important;
-  color: var(--vscode-inputOption-activeForeground) !important;
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
 }
