@@ -25,14 +25,9 @@ export type FilterState = {
   resourceType: ResourceType;
 };
 
-export const defaultFilterState: FilterState = { searchValue: '', resourceType: 'All' };
+const NEXT_ITEM_ESTIMATED_WIDTH = 50;
 
-// TODO:
-// 1. 하단으로 이동시켰다가 다시 돌아올 때 탭 아이템 일부 중복되는 현상 수정
-// 2. resize 줄어들 때 moreButton이 오른쪽으로 밀려서 사라지는 현상 수정
-// 3. 현재 선택된 탭인 경우 dropdown 에 넣지 않도록 수정
-// 4. 현재 선택된 탭이면서 왼쪽에 아이템이 있는 경우, 좌측 아이템을 넣도록 수정
-// 5. 드롭다운에서 탭 선택시, 가장 마지막에 있는 visible Item 과 switch 되도록 수정
+export const defaultFilterState: FilterState = { searchValue: '', resourceType: 'All' };
 
 export const NetworkFilters = ({
   filterState,
@@ -45,66 +40,61 @@ export const NetworkFilters = ({
   const tabRefs = React.useRef<(HTMLDivElement | null)[]>([]);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-  const [visible, setVisible] = React.useState<ResourceType[]>([...resourceTypes]);
-  const [overflows, setOverflows] = React.useState<ResourceType[]>([]);
+  const [hiddenItems, setHiddenItems] = React.useState<Set<ResourceType>>(new Set());
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
+
+  // 계산된 값들
+  const visibleItems = resourceTypes.filter(type => !hiddenItems.has(type));
+  const overflowItems = resourceTypes.filter(type => hiddenItems.has(type));
 
 
   const recalc = React.useCallback(() => {
-    const containerElement = containerRef.current;
+    const container = containerRef.current;
+    const lastVisibleEl = tabRefs.current[visibleItems.length - 1];
 
-    if (!containerElement)
+    if (!container || !lastVisibleEl)
       return;
 
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    const moreButtonRect =  dropdownRef.current?.getBoundingClientRect();
-    const availableWidthForAllVisibleItems = containerRect.width - (moreButtonRect?.width ?? 0);
+    const containerBox = containerRef.current?.getBoundingClientRect();
+    const moreBtnBox =  dropdownRef.current?.getBoundingClientRect();
+    const availableWidth = containerBox.width - (moreBtnBox?.width ?? 0);
+    const curVisibleWidth = lastVisibleEl.getBoundingClientRect().right - containerBox.left;
 
-    // --- 로직 1: 아이템을 'visible'에서 'overflows'로 이동 ---
-    if (visible.length > 0) {
-      const lastVisibleItemElement = tabRefs.current[visible.length - 1];
-
-      if (lastVisibleItemElement) {
-        const totalWidthOfVisibleItems = lastVisibleItemElement.getBoundingClientRect().right - containerRect.left;
-
-        if (totalWidthOfVisibleItems > availableWidthForAllVisibleItems) {
-          const itemToMove = visible[visible.length - 1];
-          setVisible(prev => prev.slice(0, -1));
-          setOverflows(prev => [...prev, itemToMove]);
-          return;
-        }
+    if (availableWidth < curVisibleWidth) {
+      const lastVisibleItem = visibleItems[visibleItems.length - 1];
+      if (visibleItems.length === 1 && filterState.resourceType === lastVisibleItem)
+        return;
+      if (filterState.resourceType !== lastVisibleItem) {
+        setHiddenItems(prev => new Set([...prev, lastVisibleItem]));
+        return;
       }
-    }
-
-    // --- 로직 2: 아이템을 'overflows'에서 'visible'로 다시 이동 ---
-    if (overflows.length > 0) {
-      let totalWidthOfCurrentVisibleItems = 0;
-      if (visible.length > 0) {
-        const lastVisibleItemElement = tabRefs.current[visible.length - 1];
-        if (lastVisibleItemElement)
-          totalWidthOfCurrentVisibleItems = lastVisibleItemElement.getBoundingClientRect().right - containerRect.left;
-      }
-
-      const NEXT_ITEM_ESTIMATED_WIDTH = 50;
-
-      if (totalWidthOfCurrentVisibleItems + NEXT_ITEM_ESTIMATED_WIDTH <= availableWidthForAllVisibleItems) {
-        const itemToMoveBack = overflows[overflows.length - 1];
-        setVisible(prev => [...prev, itemToMoveBack]);
-        setOverflows(prev => prev.slice(0, -1));
+      if (visibleItems.length > 1) {
+        const itemToMove = visibleItems[visibleItems.length - 2];
+        setHiddenItems(prev => new Set([...prev, itemToMove]));
         return;
       }
     }
-  }, [visible, overflows]);
+    if (hiddenItems.size > 0 && availableWidth > curVisibleWidth) {
+      const remainingSpace = availableWidth - curVisibleWidth;
+      const nextItemToShow = overflowItems[0];
+      if (remainingSpace >= NEXT_ITEM_ESTIMATED_WIDTH) {
+        setHiddenItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(nextItemToShow);
+          return newSet;
+        });
+        return;
+      }
+    }
+  }, [visibleItems, hiddenItems]);
 
   React.useEffect(() => {
     recalc();
     const ro = new ResizeObserver(() => {
       recalc();
     });
-
     if (containerRef.current)
       ro.observe(containerRef.current);
-
     return () => ro.disconnect();
   }, [recalc]);
 
@@ -113,7 +103,6 @@ export const NetworkFilters = ({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node))
         setDropdownOpen(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -131,7 +120,7 @@ export const NetworkFilters = ({
         }
       />
       <div className='network-filters-resource-types' ref={containerRef}>
-        {visible.map((type, idx) => (
+        {visibleItems.map((type, idx) => (
           <div
             key={type}
             ref={el => (tabRefs.current[idx] = el)}
@@ -146,7 +135,7 @@ export const NetworkFilters = ({
             {type}
           </div>
         ))}
-        {!!overflows.length && (
+        {!!overflowItems.length && (
           <div ref={dropdownRef} className='network-filters-more-button-wrapper'>
             <ToolbarButton
               title='More filters'
@@ -158,7 +147,7 @@ export const NetworkFilters = ({
             </ToolbarButton>
             {dropdownOpen && (
               <div className='network-filters-dropdown'>
-                {overflows.map(type => (
+                {overflowItems.map(type => (
                   <div
                     key={type}
                     className={`network-filters-dropdown-item ${
