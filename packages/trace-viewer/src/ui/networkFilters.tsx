@@ -39,9 +39,19 @@ export const NetworkFilters = ({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const tabRefs = React.useRef<(HTMLDivElement | null)[]>([]);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const prevSizeRef = React.useRef<number>(0);
 
   const [hiddenItems, setHiddenItems] = React.useState<Set<ResourceType>>(new Set());
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
+
+  const stateRef = React.useRef({
+    hiddenItems,
+    filterState
+  });
+
+  React.useEffect(() => {
+    stateRef.current = { hiddenItems, filterState };
+  }, [hiddenItems, filterState]);
 
   const visibleItems = resourceTypes.filter(type => !hiddenItems.has(type));
   const overflowItems = resourceTypes.filter(type => hiddenItems.has(type));
@@ -59,35 +69,45 @@ export const NetworkFilters = ({
     setDropdownOpen(false);
   };
 
-  const recalc = React.useCallback(() => {
+  const recalc = React.useCallback((isExpanding = false, isShrinking = false) => {
     const container = containerRef.current;
-    const lastVisibleEl = tabRefs.current[visibleItems.length - 1];
+
+    const currentHiddenItems = stateRef.current.hiddenItems;
+    const currentFilterState = stateRef.current.filterState;
+    const currentVisibleItems = resourceTypes.filter(type => !currentHiddenItems.has(type));
+    const currentOverflowItems = resourceTypes.filter(type => currentHiddenItems.has(type));
+
+    const lastVisibleEl = tabRefs.current[currentVisibleItems.length - 1];
 
     if (!container || !lastVisibleEl)
       return;
 
     const containerBox = containerRef.current?.getBoundingClientRect();
     const moreBtnBox =  dropdownRef.current?.getBoundingClientRect();
-    const availableWidth = containerBox.width - (moreBtnBox?.width ?? 0);
+    const moreBtnWidth = moreBtnBox?.width ?? 40;
+    const availableWidth = +(containerBox.width - moreBtnWidth).toFixed(0);
     const curVisibleWidth = lastVisibleEl.getBoundingClientRect().right - containerBox.left;
 
-    if (availableWidth < curVisibleWidth) {
-      const lastVisibleItem = visibleItems[visibleItems.length - 1];
-      if (visibleItems.length === 1 && filterState.resourceType === lastVisibleItem)
+    if (isShrinking && availableWidth <= curVisibleWidth) {
+      const lastVisibleItem = currentVisibleItems[currentVisibleItems.length - 1];
+      if (currentVisibleItems.length === 1 && currentFilterState.resourceType === lastVisibleItem)
         return;
-      if (filterState.resourceType !== lastVisibleItem) {
+
+
+      if (currentFilterState.resourceType !== lastVisibleItem) {
         setHiddenItems(prev => new Set([...prev, lastVisibleItem]));
         return;
       }
-      if (visibleItems.length > 1) {
-        const itemToMove = visibleItems[visibleItems.length - 2];
+      if (currentVisibleItems.length > 1) {
+        const itemToMove = currentVisibleItems[currentVisibleItems.length - 2];
         setHiddenItems(prev => new Set([...prev, itemToMove]));
         return;
       }
     }
-    if (hiddenItems.size > 0 && availableWidth > curVisibleWidth) {
+
+    if (isExpanding && currentHiddenItems.size > 0 && availableWidth > curVisibleWidth) {
       const remainingSpace = availableWidth - curVisibleWidth;
-      const nextItemToShow = overflowItems[0];
+      const nextItemToShow = currentOverflowItems[0];
       if (remainingSpace >= NEXT_ITEM_ESTIMATED_WIDTH) {
         setHiddenItems(prev => {
           const newSet = new Set(prev);
@@ -97,15 +117,33 @@ export const NetworkFilters = ({
         return;
       }
     }
-  }, [visibleItems, hiddenItems, overflowItems, filterState.resourceType]);
+  }, []);
 
   React.useEffect(() => {
     recalc();
-    const ro = new ResizeObserver(() => {
-      recalc();
+
+    const ro = new ResizeObserver(entries => {
+      const entry = entries[0];
+      const currentWidth = entry.contentRect.width;
+      const prevWidth = prevSizeRef.current;
+
+      if (prevWidth === 0) {
+        prevSizeRef.current = currentWidth;
+        return;
+      }
+
+      const isExpanding = currentWidth > prevWidth;
+      const isShrinking = currentWidth < prevWidth;
+
+      recalc(isExpanding, isShrinking);
+
+      prevSizeRef.current = currentWidth;
     });
-    if (containerRef.current)
+
+    if (containerRef.current) {
+      prevSizeRef.current = containerRef.current.getBoundingClientRect().width;
       ro.observe(containerRef.current);
+    }
     return () => ro.disconnect();
   }, [recalc]);
 
@@ -146,34 +184,34 @@ export const NetworkFilters = ({
             {type}
           </div>
         ))}
-        {!!overflowItems.length && (
-          <div ref={dropdownRef} className='network-filters-more-button-wrapper'>
-            <ToolbarButton
-              title='More filters'
-              className={`network-filters-more-button ${dropdownOpen ? 'active' : ''}`}
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              ariaLabel='More filters'
-            >
-              <span className='codicon codicon-chevron-right' />
-            </ToolbarButton>
-            {dropdownOpen && (
-              <div className='network-filters-dropdown'>
-                {overflowItems.map(type => (
-                  <div
-                    key={type}
-                    className={`network-filters-dropdown-item ${
-                      filterState.resourceType === type ? 'selected' : ''
-                    }`}
-                    onClick={() => handleDropdownItemClick(type)}
-                  >
-                    {type}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
+      {overflowItems.length > 0 && (
+        <div ref={dropdownRef} className='network-filters-more-button-wrapper'>
+          <ToolbarButton
+            title='More filters'
+            className={`network-filters-more-button ${dropdownOpen ? 'active' : ''}`}
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            ariaLabel='More filters'
+          >
+            <span className='codicon codicon-chevron-right' />
+          </ToolbarButton>
+          {dropdownOpen && (
+            <div className='network-filters-dropdown'>
+              {overflowItems.map(type => (
+                <div
+                  key={type}
+                  className={`network-filters-dropdown-item ${
+                    filterState.resourceType === type ? 'selected' : ''
+                  }`}
+                  onClick={() => handleDropdownItemClick(type)}
+                >
+                  {type}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

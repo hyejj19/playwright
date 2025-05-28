@@ -97,3 +97,11 @@
   background-color: var(--vscode-list-inactiveSelectionBackground);
   color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
 }
+
+.network-filters-more-button.show {
+  visibility: visible;
+}
+
+.network-filters-more-button.hidden {
+  visibility: hidden;
+}
